@@ -1,9 +1,14 @@
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+
 // para manejar variables de ambiente
+
 import * as dotenv from "dotenv";
 dotenv.config();
 import path from "path";
 
 // importando modulos personalizados
+
 import { handleErrors } from "./errors.js";
 import {
   agregarEquipo,
@@ -12,21 +17,33 @@ import {
   eliminarEquipo,
   obtenerDetallesEquipoPorId,
   buscarEquiposPorParametro,
-  
 } from "./consulta.js";
 import fs from "fs";
 
 // importando express y cors
+
 import express from "express";
 const app = express();
 import cors from "cors";
 import multer from "multer";
+
 //const currentFileUrl = import.meta.url;
 //const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
 // middleware para parsear body enviado al servidor
+
 app.use(express.json());
 app.use(cors());
+
+//0. GET para redirigir a la página de login en la ruta raíz
+app.get("/", (req, res) => {
+  res.redirect("/login");
+});
+
+// Ruta para ver la página de login
+app.get("/login", (req, res) => {
+  // Aquí devuelves la página de login, ya sea renderizando un archivo HTML, un template de tu framework o como prefieras manejarlo
+});
 
 //// levantando servidor USANDO UN PUERTO PREDETERMINADO EN .ENV
 const PORT = process.env.PORT || 3002;
@@ -46,6 +63,43 @@ app.listen(PORT, () => {
   console.log("servidor listo en http://localhost:" + PORT);
 });
 
+// Función para generar token JWT
+const generateToken = (user) => {
+  return jwt.sign({ userId: user.id, role: user.role }, process.env.JWT_SECRET, {
+    expiresIn: "1h", // Cambia esto según tus necesidades
+  });
+};
+
+// Función para verificar credenciales y generar token
+const login = async (req, res) => {
+  const { username, password } = req.body;
+  // Aquí deberías buscar el usuario en tu base de datos y verificar las credenciales
+  // Ejemplo de validación básica con usuario y contraseña harcoded
+  if (username === "admin" && password === "password") {
+    const user = { id: 1, username: "admin", role: "admin" }; // Ejemplo de usuario encontrado en la base de datos
+    const token = generateToken(user);
+    res.json({ token });
+  } else {
+    res.status(401).json({ error: "Credenciales inválidas" });
+  }
+};
+
+// Ruta para manejar el inicio de sesión
+app.post("/login", login);
+
+// Middleware para verificar el token JWT en las rutas protegidas
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  if (token == null) return res.sendStatus(401);
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+};
+
 //rutas del enrutador/ Api Rest, enlazar ruta con funcion BD
 
 //1. GET para ver todos los equipos registrados en la tabla
@@ -59,9 +113,6 @@ app.get("/equipos", async (req, res) => {
     res.status(status).send("Error al obtener los equipos: " + message);
   }
 });
-
-//Agregar la ruta para desasignar un equipo
-
 
 
 //2. POST para ingresar un equipo en la tabla
